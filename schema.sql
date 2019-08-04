@@ -1,5 +1,5 @@
 -- DROP TABLE IF EXISTS locations, weather;
-DROP TABLE IF EXISTS locations;
+-- DROP TABLE IF EXISTS locations;
 
 CREATE TABLE IF NOT EXISTS locations (
 id SERIAL PRIMARY KEY,
@@ -9,8 +9,8 @@ latitude NUMERIC(10,7),
 longitude NUMERIC(10,7)
 );
 
--- CREATE TABLE IF NOT EXISTS weather (
--- id SERIAL PRIMARY KEY,
--- forecast TEXT,
--- time VARCHAR(255)
--- );
+CREATE TABLE IF NOT EXISTS weather (
+id SERIAL PRIMARY KEY,
+forecast TEXT,
+time VARCHAR(255)
+);
