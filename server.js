@@ -33,13 +33,12 @@ app.listen(PORT, () => console.log(`listening on port ${PORT}`));
 
 //route to handle user request and send the response from our database or GOOGLE
 app.get('/location', (req,res) => {
-  // let city = lookupLocation(req.query.data);
-  // city(req.query.data);
-  lookupLocation(req.query.data);
-  
-  if (lookupLocation(req.query.data) === true){
+
+  // lookupLocation(req.query.data);
+  let test = lookupLocation(req.query.data);
+  if (test === true){
     return lookupLocation(req.query.data);
-  } 
+  }
   else {
 
     //req.query.data gives us actual string value of users input
@@ -47,30 +46,26 @@ app.get('/location', (req,res) => {
 
     //when we got a return from searchLatLong then this return will be used to send as the response
       .then(location =>{
-        // postLocation(location);
+
         res.send(location);
-        postLocation(location);
+
       });
 
   }
 });
 
-//function to search for the location latitude and longitude using geocode epi key
+//function to search for the location latitude and longitude using geocode api key
 function searchToLatLong(query){
   const url =`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
   //using our superagent library to get the proper data format
   return superagent.get(url)
+
   //then when we got the data from superagent create a new City object with the query (location name) and data (res.body.results[0]);
     .then(res => {
-      // let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
-      // const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
-
-      // client.query(SQL, values)
-      //   .then (result => console.log(`location ${location} and result ${result} inserted `));
-
-      return new City(query, res.body.results[0]);
-        
-        
+      let city = new City(query, res.body.results[0]);
+      ////envoking prototype function to set our object in table
+      city.postLocation(query);
+      return city;
     });
 
 }
@@ -83,6 +78,16 @@ function City(query, data){
   this.longitude = data.geometry.location.lng;
 }
 
+///protoype to post data in database
+City.prototype.postLocation = function (query){
+
+  let SQL = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id';
+  const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+
+  return client.query(SQL, values)
+    .then (result => console.log(`location ${query} and result ${result} inserted `));
+
+};
 //=============================================================================================================//
 
 
@@ -115,19 +120,19 @@ function Weather(day) {
 
 //============================== DataBase Helper Functions==========================================================//
 
-//check if data from SQL DB contains requested location 
+//check if data from SQL DB contains requested location
 let lookupLocation = (location) =>{
-  let SQL = `SELECT * FROM locations WHERE search_query=$1`;
-  let values = [location.query];
-  console.log('location          ' + location);
-
+  let SQL = 'SELECT * FROM locations WHERE search_query= $1';
+  let values = [location];
+  console.log(location);
   return client.query(SQL, values)
     .then(result => {
-      console.log(result);
+      console.log(result.rows[0]);
       if (result.rowCount > 0){
         // if so return location data
-        console.log('result.rows[0]     ' + result.rows[0]);
-        return new City(result.rows[0]);
+
+        return new City(location, result.rows[0]);
+
       } else {
         return null;
       }
@@ -135,14 +140,15 @@ let lookupLocation = (location) =>{
     });
 };
 
-let postLocation = (location) => {
-  let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($val1, $val2, $val3, $val4) ON CONFLICT DO NOTHING RETURNING id;`;
-  const values = [location.search_query, location.formatted_query, location.latitude, location.longitude];
+//helper function to post location in database
+// let postLocation = (location) => {
+//   let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($val1, $val2, $val3, $val4) ON CONFLICT DO NOTHING RETURNING id;`;
+//   const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
 
-  return client.query(SQL, values)
-    .then (result => console.log(`location ${location} and result ${result} inserted `));
+//   return client.query(SQL, values)
+//     .then (result => console.log(`location ${location} and result ${result} inserted `));
 
-};
+// };
 //=============================================================================================================//
 
 
