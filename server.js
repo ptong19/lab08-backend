@@ -4,6 +4,12 @@
 const express = require('express');
 const app = express();
 const superagent = require('superagent');
+const pg = require('pg');
+
+//connection to the client
+const client= new pg.Client(process.env.DATABASE_URL);
+client.connect();
+client.on('error', err => console.error(err));
 
 //add cors and superagent
 const cors = require('cors');
@@ -24,20 +30,59 @@ app.get('/location', (req,res) => {
 
 // constructor function to buld a city object instances
 function City(query, data){
+  console.log('do we get here?');
+
   this.search_query = query;
-  this.formatted_query = data.body.results[0].formatted_address;
-  this.latitude = data.body.results[0].geometry.location.lat;
-  this.longitude = data.body.results[0].geometry.location.lng;
+  this.formatted_query = data.formatted_address;
+  this.latitude = data.geometry.location.lat;
+  this.longitude = data.geometry.location.lng;
+  
 }
 
 function searchToLatLong(query){
-  const url =`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
-  return superagent.get(url)
-    .then(res => {
-      return new City(query, res);
-    });
+
+  let city = lookupLocation(query);
+  if (city){
+    return city;
+  } else {
+    const url =`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
+    return superagent.get(url)
+      .then(res => {
+        // return new City(query, res.body.results[0])
+        //   .then(city =>{
+            postLocation(city);
+          });
+      });
+
+  }
+ 
 }
 
+//check if data from SQL DB contains location 
+let lookupLocation = (location) =>{
+  let SQL = `SELECT * FROM locations WHERE search_query=$1`;
+  let values = [location.query];
+  console.log(location);
+
+  return client.query(SQL, values)
+    .then(result => {
+      console.log(result);
+      if (result.rowCount > 0){
+        // if so return location data
+        return new City(result.rows[0]);
+      } else {
+        //if no return null
+        return null;
+      }
+
+    });
+};
+
+let postLocation = (location) => {
+  let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude)VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id;`;
+  const values = [this.searc.query, this.formatted_query, this.latitude, this.longitude];
+  
+};
 
 app.get('/weather', (req, res) => {
   const api_url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${req.query.data.latitude},${req.query.data.longitude}`;
@@ -51,6 +96,7 @@ app.get('/weather', (req, res) => {
     });
 
 });
+
 
 //weather constructor
 function Weather(day) {
@@ -78,5 +124,4 @@ function Weather(day) {
 //   this.event_date=
 //   this.summary = 
 // }
-
 
