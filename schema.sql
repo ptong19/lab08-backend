@@ -1,5 +1,5 @@
--- DROP TABLE IF EXISTS locations, weather;
--- DROP TABLE IF EXISTS locations;
+DROP TABLE IF EXISTS locations, weather;
+
 
 CREATE TABLE IF NOT EXISTS locations (
 id SERIAL PRIMARY KEY,

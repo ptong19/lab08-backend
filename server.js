@@ -34,25 +34,30 @@ app.listen(PORT, () => console.log(`listening on port ${PORT}`));
 //route to handle user request and send the response from our database or GOOGLE
 app.get('/location', (req,res) => {
 
-  // lookupLocation(req.query.data);
-  let test = lookupLocation(req.query.data);
-  if (test === true){
-    return lookupLocation(req.query.data);
-  }
-  else {
+  //check if this lcoation exist in database
+  lookupLocation(req.query.data)
+    .then(location => {
 
-    //req.query.data gives us actual string value of users input
-    searchToLatLong(req.query.data)
-
-    //when we got a return from searchLatLong then this return will be used to send as the response
-      .then(location =>{
-
+      if (location){
+        //if exists send the object as response
         res.send(location);
+      }
 
-      });
+      //if doesn't exists go to go to google api
+      else
+      {//req.query.data gives us actual string value of users input
+        searchToLatLong(req.query.data)
 
-  }
+        //when we got a return from searchLatLong then this return will be used to send as the response
+          .then(location =>{
+
+            res.send(location);
+
+          });
+      }
+    });
 });
+
 
 //function to search for the location latitude and longitude using geocode api key
 function searchToLatLong(query){
@@ -78,16 +83,6 @@ function City(query, data){
   this.longitude = data.geometry.location.lng;
 }
 
-///protoype to post data in database
-City.prototype.postLocation = function (query){
-
-  let SQL = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id';
-  const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
-
-  return client.query(SQL, values)
-    .then (result => console.log(`location ${query} and result ${result} inserted `));
-
-};
 //=============================================================================================================//
 
 
@@ -112,43 +107,78 @@ app.get('/weather', (req, res) => {
 //weather constructor build base on the darksky.json file paths
 function Weather(day) {
   this.forecast = day.summary;
-  this.time = new Date(day.time * 1000).toString(); //converting UNix timestamp to regular time
+  this.time = new Date(day.time * 1000).toString().slice(0, 15); //converting UNix timestamp to regular time
 }
 
 //=============================================================================================================//
+
+
+//==================================EVENTBRITE feature===========================================================================//
+//route to handle user request and send the response from our database or DarkSky
+// app.get('/events', (req, res) => {
+//   const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request}`;
+  
+//   return superagent.get(api_url)
+
+//     .then(eventDisplay => {
+//       let eventSummaries = [];   ///array to store our event summaries
+//       eventDisplay.body.daily.data.map((day) => {
+//         eventSummaries.push(new Weather(day));  //create new Weather object and push it to weather Summaries
+//       });
+//       res.send(eventSummaries); //send WeatherSummaries array as a response
+//     });
+
+// });
+
+
+
+
+//=============================================================================================================//
+
 
 
 //============================== DataBase Helper Functions==========================================================//
 
 //check if data from SQL DB contains requested location
 let lookupLocation = (location) =>{
-  let SQL = 'SELECT * FROM locations WHERE search_query= $1';
+  let SQL = 'SELECT * FROM locations WHERE search_query=$1';
   let values = [location];
   console.log(location);
   return client.query(SQL, values)
     .then(result => {
-      console.log(result.rows[0]);
+      console.log(result);
       if (result.rowCount > 0){
         // if so return location data
-
-        return new City(location, result.rows[0]);
-
-      } else {
-        return null;
+        console.log("line 133:    " + result.rows[0]);
+        let testcity =  new CitySQL(result.rows[0]);
+        console.log(testcity);
+        return testcity;
       }
-
     });
 };
 
-//helper function to post location in database
-// let postLocation = (location) => {
-//   let SQL = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($val1, $val2, $val3, $val4) ON CONFLICT DO NOTHING RETURNING id;`;
-//   const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+////constructor function for the new object from our database. We need it because cit_explorer database has different paths than our original geo.json file
 
-//   return client.query(SQL, values)
-//     .then (result => console.log(`location ${location} and result ${result} inserted `));
+function CitySQL(data){
+  this.search_query = data.search_query;
+  this.formatted_query = data.formatted_query;
+  this.latitude = parseFloat(data.latitude);
+  this.longitude = parseFloat(data.longitude);
+}
 
-// };
-//=============================================================================================================//
+///prototype function to City constructor function to post NEW data in database
+
+City.prototype.postLocation = function (query){
+
+  let SQL = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id';
+  const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+
+  return client.query(SQL, values)
+    .then (result => console.log(`location ${query} and result ${result} inserted `));
+
+};
+
+
+//===================================================================================//
 
 
