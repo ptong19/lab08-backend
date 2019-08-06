@@ -114,24 +114,31 @@ function Weather(day) {
 
 
 //==================================EVENTBRITE feature===========================================================================//
-//route to handle user request and send the response from our database or DarkSky
-// app.get('/events', (req, res) => {
-//   const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request}`;
+// route to handle user request and send the response from our database or EVENTBRITE
+app.get('/events', (req, res) => {
+  const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${req}`;
   
-//   return superagent.get(api_url)
+  return superagent.get(api_url)
 
-//     .then(eventDisplay => {
-//       let eventSummaries = [];   ///array to store our event summaries
-//       eventDisplay.body.daily.data.map((day) => {
-//         eventSummaries.push(new Weather(day));  //create new Weather object and push it to weather Summaries
-//       });
-//       res.send(eventSummaries); //send WeatherSummaries array as a response
-//     });
+    .then(eventDisplay => {
+      let eventSummaries = [];   ///array to store our event summaries
+      
+      eventDisplay.body.events.map((event) => {
+        // console.log("this is i   " + i);
+        eventSummaries.push(new Event(event));  //create new Event object and push it to Event Summaries
+      });
+      console.log ("this is event summaries       " + eventSummaries);
+      res.send(eventSummaries); //send Eventbrite summaries array as a response
+    });
 
-// });
+});
 
-
-
+function Event(data){
+  this.link = data.url;
+  this.name = data.name.text;
+  this.event_date = new Date(data.start.local).toString().slice(0, 15);
+  this.summary = data.summary;
+}
 
 //=============================================================================================================//
 
@@ -146,12 +153,9 @@ let lookupLocation = (location) =>{
   console.log(location);
   return client.query(SQL, values)
     .then(result => {
-      console.log(result);
       if (result.rowCount > 0){
         // if so return location data
-        console.log("line 133:    " + result.rows[0]);
         let testcity =  new CitySQL(result.rows[0]);
-        console.log(testcity);
         return testcity;
       }
     });
