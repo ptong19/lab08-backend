@@ -116,7 +116,7 @@ function Weather(day) {
 //==================================EVENTBRITE feature===========================================================================//
 // route to handle user request and send the response from our database or EVENTBRITE
 app.get('/events', (req, res) => {
-  const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${req}`;
+  const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${req.query.data.search_query}`;
   
   return superagent.get(api_url)
 
