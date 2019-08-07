@@ -1,7 +1,7 @@
 {
-  "name": "package",
+  "name": "lab08-backend",
   "version": "1.0.0",
-  "description": "json file for the 6th lab",
+  "description": "**Author**: Anastasia Lebedeva, Aaron Imbrock **Version**: 1.0.2 (increment the patch/fix version number if you make more commits past your first submission)",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,21 +9,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nastinsk/lab-06-back-end.git"
+    "url": "git+https://github.com/ptong19/lab08-backend.git"
   },
+  "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/nastinsk/lab-06-back-end/issues"
+    "url": "https://github.com/ptong19/lab08-backend/issues"
   },
-  "homepage": "https://github.com/nastinsk/lab-06-back-end#readme",
+  "homepage": "https://github.com/ptong19/lab08-backend#readme",
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^8.0.0",
-    "express": "^4.17.1",
-    "pg": "^7.12.0",
-    "superagent": "^5.1.0"
-  },
-  "devDependencies": {},
-  "keywords": []
+    "dotenv": "^8.0.0"
+  }
 }
