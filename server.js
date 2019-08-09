@@ -1,171 +1,285 @@
+/* eslint-disable indent */
 'use strict';
 
-require('dotenv').config();
+//======================== Globla Variables and appplication dependensies ================================//
 
-
+// these are our application dependencies
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
-const superagent = require('superagent');
+
+//add cors and superagent
 const cors = require('cors');
+app.use(cors());
+const superagent = require('superagent');
+
+// configure environment variables
+require('dotenv').config();
+const PORT = process.env.PORT || 3000;
+
 const pg = require('pg');
 
+//connection to the client
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
-client.on('err', err => console.log(err));
+client.on('error', err => console.error(err));
 
 
-app.use(cors());
+// tell our express server to start listening on port PORT
+app.listen(PORT, () => console.log(`listening on port ${PORT}`));
 
-// ROUTES
+//variable to store our city/location object
+let city; 
+//=======================================================================================================//
+
 app.get('/location', getLocation);
 app.get('/weather', getWeather);
+app.get('/events', getEvents);
 
-function handleError(err, res) {
-  console.error('ERR', err);
-  if (res) res.status(500).send('Sorry, something went wrong');
-}
+//============================== Location Feature ==========================================================//
 
+//route to handle user request and send the response from our database or GOOGLE
+function getLocation(req,res){
 
-app.listen(PORT, () => console.log(`App is up and running on ${PORT}`));
+  //check if this lcoation exist in database
+  lookupLocation(req.query.data)
+    .then(location => {
 
+      if (location){
+        //if exists send the object as response
+        res.send(location);
+      }
 
+      //if doesn't exists go to go to google api
+      else
+      {//req.query.data gives us actual string value of users input
+        searchToLatLong(req.query.data)
 
-function getLocation(request, response) {
+        //when we got a return from searchLatLong then this return will be used to send as the response
+          .then(location =>{
 
-  const locationHandler = {
+            res.send(location);
 
-    query: request.query.data,
-
-    cacheHit: (results) => {
-      console.log('Got Data from SQL');
-      response.send(results.rows[0]);
-    },
-
-    cacheMiss: () => {
-      Location.fetchLocation(request.query.data)
-        .then(data => response.send(data));
-    },
-  };
-
-  Location.lookupLocation(locationHandler);
-}
-
-
-function Location(query, data) {
-  this.search_query = query;
-  this.formatted_address = data.formatted_address;
-  this.latitude = data.geometry.location.lat;
-  this.longitude = data.geometry.location.lng;
-}
-
-Location.prototype.save = function() {
-  let SQL =
-  `INSERT INTO locations
-  (search_query, formatted_query, latitude, longitude)
-  VALUES($1,$2,$3,$4)
-  RETURNING id`;
-
-  let values = Object.values(this);
-  return client.query(SQL,values);
-};
-
-
-Location.fetchLocation = (query) => {
-  const _URL = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
-  return superagent.get(_URL)
-    .then (data => {
-      console.log('Got data from API');
-      if (! data.body.results.length) { throw 'No Data'; }
-      else {
-        let location = new Location(query, data.body.results[0]);
-        return location.save()
-          .then (result => {
-            location.id = result.rows[0].id;
-            return location;
           });
       }
     });
-};
+}
 
-Location.lookupLocation = (handler) => {
-  const SQL = `SELECT * FROM locations WHERE search_query=$1`;
-  const values = [handler.query];
-
+//check if data from SQL DB contains requested location
+let lookupLocation = (location) =>{
+  let SQL = 'SELECT * FROM locations WHERE search_query=$1';
+  let values = [location];
   return client.query(SQL, values)
-    .then ( results => {
-      if(results.rowCount > 0) {
-        handler.cacheHit(results);   
-      }
-      else {
-        handler.cacheMiss();
-      }
-    })
-    .catch(console.error);
-};
-
-function getWeather(request, response) {
-
-  const handler = {
-
-    location: request.query.data,
-
-    cacheHit: function(result) {
-      response.send(result.rows);
-    },
-
-    cacheMiss: function() {
-      Weather.fetch(request.query.data)
-        .then( results => response.send(results) )
-        .catch( console.error );
-    },
-  };
-
-  Weather.lookup(handler);
-
-}
-
-
-function Weather(day) {
-  this.forecast = day.summary;
-  this.time = new Date(day.time * 1000).toString().slice(0, 15);
-}
-
-
-Weather.prototype.save = function(id) {
-  const SQL = `INSERT INTO weathers (forecast, time, location_id) VALUES ($1, $2, $3);`;
-  const values = Object.values(this);
-  values.push(id);
-  client.query(SQL, values);
-};
-
-
-Weather.lookup = function(handler) {
-  const SQL = `SELECT * FROM weathers WHERE location_id=$1;`;
-  client.query(SQL, [handler.location.id])
     .then(result => {
-      if(result.rowCount > 0) {
-        console.log('Got data from SQL');
-        handler.cacheHit(result);
-      } else {
-        console.log('Got data from API');
-        handler.cacheMiss();
+      if (result.rowCount > 0){
+        // if so return location data
+        return result.rows[0];
       }
-    })
-    .catch(error => handleError(error));
-};
-
-
-Weather.fetch = function(location) {
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${location.latitude},${location.longitude}`;
-
-  return superagent.get(url)
-    .then(result => {
-      const weatherSummaries = result.body.daily.data.map(day => {
-        const summary = new Weather(day);
-        summary.save(location.id);
-        return summary;
-      });
-      return weatherSummaries;
     });
 };
+
+//function to search for the location latitude and longitude using geocode api key
+function searchToLatLong(query){
+  const url =`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
+  //using our superagent library to get the proper data format
+  return superagent.get(url)
+
+  //then when we got the data from superagent create a new City object with the query (location name) and data (res.body.results[0]);
+    .then(res => {
+      city = new City(query, res.body.results[0]);
+      ////envoking prototype function to set our object in table
+      city.postLocation(query);
+      return city;
+    });
+
+}
+
+// constructor function to buld a city object instances, paths based on the geo.json file
+function City(query, data){
+  this.search_query = query;
+  this.formatted_query = data.formatted_address;
+  this.latitude = data.geometry.location.lat;
+  this.longitude = data.geometry.location.lng;
+  this.id; 
+
+}
+
+///prototype function to City constructor function to post NEW data in database
+
+City.prototype.postLocation = function (){
+
+  let SQL = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id';
+  const values = [this.search_query, this.formatted_query, this.latitude, this.longitude];
+
+  return client.query(SQL, values)
+    .then (result => {
+      this.id = result.rows[0].id;
+    });
+
+};
+
+//=============================================================================================================//
+
+
+//============================== Weather feature =================================================================//
+
+//route to handle user request and send the response from our database or DarkSky
+function getWeather(req, res){
+  
+  //check if this lcoation exist in database
+  lookupWeather(req.query.data)
+    .then(location => {
+
+      if (location){
+        //if exists send the object as response
+        res.send(location);
+      }
+
+      //if doesn't exists go to go to google api
+      else
+      {//req.query.data gives us actual string value of users input
+        searchWeatherDarksky(req, res)
+
+        //when we got a return from searchLatLong then this return will be used to send as the response
+          .then(location =>{
+
+            res.send(location);
+
+          });
+      }
+    });
+}
+function searchWeatherDarksky (req, res){
+  const api_url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${req.query.data.latitude},${req.query.data.longitude}`;
+  return superagent.get(api_url)
+
+    .then(weatherDisplay => {
+      // let weatherSummaries = [];   ///array to store our days weather summaries
+      let weatherSummaries = weatherDisplay.body.daily.data.map((day) => {
+        return new Weather(day);  //create new Weather object and push it to weather Summaries
+      });
+      
+      weatherSummaries.forEach((day)=>{
+        cacheWeather(day, city.id);
+      });
+      
+      res.send(weatherSummaries); //send WeatherSummaries array as a response
+    });
+}
+
+
+function cacheWeather(day, id){
+  let SQL = 'INSERT INTO weather (forecast, time, location_id) VALUES ($1, $2, $3)';
+  const values = [day.forecast, day.time, id];
+
+  return client.query(SQL, values)
+    .then (result => console.log(`weather location id ${id} and result ${result} inserted `));
+
+}
+
+//weather constructor build based on the darksky.json file paths
+function Weather(day) {
+  this.forecast = day.summary;
+  this.time = new Date(day.time * 1000).toString().slice(0, 15); //converting UNix timestamp to regular time
+}
+
+//check if data from weaether SQL DB contains requested location
+let lookupWeather = (location) =>{
+  let SQL = 'SELECT * FROM weather WHERE location_id=$1';
+  let values = [location.id];
+  return client.query(SQL, values)
+    .then(result => {
+      if (result.rowCount > 0){
+        // if so return location data
+        return result.rows;
+
+      }
+    });
+};
+
+//=============================================================================================================//
+
+
+//==================================EVENTBRITE feature===========================================================================//
+// route to handle user request and send the response from our database or EVENTBRITE
+function getEvents(req, res){
+  lookupEvents(req.query.data)
+    .then(location => {
+
+      if (location){
+        //if exists send the object as response
+        res.send(location);
+        console.log ("events db data used");
+      }
+
+      //if doesn't exists go to go to Eventbrite api
+      else
+      {//req.query.data gives us
+        searchEventsEventbrite(req, res)
+           .then(location =>{
+             console.log('EVEtbrite DATA used');
+             res.send(location);
+             
+
+        });
+      }
+    });
+}
+
+//check if data from events SQL DB contains requested location
+let lookupEvents = (location) =>{
+  let SQL = 'SELECT * FROM events WHERE location_id=$1';
+  let values = [location.id];
+  return client.query(SQL, values)
+    .then(result => {
+      if (result.rowCount > 0){
+        // if so return location data
+        return result.rows;
+
+      }
+    });
+};
+
+function searchEventsEventbrite(req, res){
+  const api_url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${req.query.data.search_query}`;
+  
+  return superagent.get(api_url)
+
+    .then(result => {
+      
+      let eventSummaries = result.body.events.map((event) => {
+       return new Event(event);  //create new Event object and push it to Event Summaries
+       
+      });
+      
+      eventSummaries.forEach((event) => {
+        cacheEvents(event, city.id);
+       
+      });
+
+      res.send(eventSummaries); //send Eventbrite summaries array as a response
+    });
+
+}
+
+function cacheEvents(event, id){
+  let SQL = 'INSERT INTO events (link, name, event_date, summary, location_id) VALUES ($1, $2, $3, $4, $5)';
+  const values = [event.link, event.name, event.event_date, event.summary, id];
+
+  return client.query(SQL, values)
+    .then (result => console.log(`events location id ${id} and result ${result} inserted `));
+
+}
+
+function Event(data){
+  this.link = data.url;
+  this.name = data.name.text;
+  this.event_date = new Date(data.start.local).toString().slice(0, 15);
+  this.summary = data.summary;
+}
+
+
+//=============================================================================================================//
+
+
+
+
